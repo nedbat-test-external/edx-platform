@@ -11,6 +11,7 @@ from django.utils.translation import ugettext as _
 
 from course_modes.models import CourseMode
 from util.date_utils import DEFAULT_SHORT_DATE_FORMAT, strftime_localized
+# from django_comment_client.utils import has_discussion_privileges
 from lms.djangoapps.courseware.access_response import AccessError
 from lms.djangoapps.courseware.access_utils import ACCESS_GRANTED
 from lms.djangoapps.courseware.date_summary import verified_upgrade_deadline_link

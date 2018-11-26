@@ -15,6 +15,14 @@ from django.template.loader import render_to_string
 from django.utils.translation import ugettext_lazy as _
 
 from web_fragments.fragment import Fragment
+# from django_comment_client.utils import has_discussion_privileges
+from django_comment_common.models import (
+    FORUM_ROLE_ADMINISTRATOR,
+    FORUM_ROLE_MODERATOR,
+    FORUM_ROLE_GROUP_MODERATOR,
+    FORUM_ROLE_COMMUNITY_TA,
+    Role
+)
 from lms.djangoapps.commerce.utils import EcommerceService
 from lms.djangoapps.courseware.masquerade import (
     get_course_masquerade,
@@ -162,6 +170,11 @@ class ContentTypeGatingPartitionScheme(object):
 
         # If the user is a beta tester for this course they are granted FULL_ACCESS
         if CourseBetaTesterRole(course_key).has_user(user):
+            return cls.FULL_ACCESS
+
+        # If the user is a Discussion Admin, Moderator, or Community TA they are granted FULL_ACCESS
+        roles = [FORUM_ROLE_COMMUNITY_TA, FORUM_ROLE_GROUP_MODERATOR, FORUM_ROLE_MODERATOR, FORUM_ROLE_ADMINISTRATOR]
+        if Role.user_has_role_for_course(user, course_key, roles):
             return cls.FULL_ACCESS
 
         course_enrollment = apps.get_model('student.CourseEnrollment')

@@ -15,6 +15,14 @@ from pytz import UTC
 from waffle.models import Flag
 from waffle.testutils import override_flag
 
+from django_comment_common.models import (
+    FORUM_ROLE_ADMINISTRATOR,
+    FORUM_ROLE_MODERATOR,
+    FORUM_ROLE_GROUP_MODERATOR,
+    FORUM_ROLE_COMMUNITY_TA,
+    Role
+)
+from django_comment_client.tests.factories import RoleFactory
 from course_modes.models import CourseMode
 from course_modes.tests.factories import CourseModeFactory
 from courseware.tests.helpers import get_expiration_banner_text
@@ -373,7 +381,7 @@ class TestCourseHomePageAccess(CourseHomePageTestCase):
         OrgStaffFactory,
         OrgInstructorFactory,
     )
-    def test_course_does_not_expire_for_course_roles(self, role_factory):
+    def test_course_does_not_expire_for_course_staff(self, role_factory):
         """
         There are a number of different roles/users that should not lose access after the expiration date.
         Ensure that users who should not lose access get a 200 (ok) response
@@ -390,13 +398,39 @@ class TestCourseHomePageAccess(CourseHomePageTestCase):
             enrollment__user=user
         )
 
-        # ensure that the user who has indefinite access
+        # ensure that the user has indefinite access
         self.client.login(username=user.username, password=self.TEST_PASSWORD)
         response = self.client.get(url)
         self.assertEqual(
             response.status_code,
             200,
             "Should not expire access for user",
+        )
+
+    @ddt.data(
+        FORUM_ROLE_COMMUNITY_TA,
+        FORUM_ROLE_GROUP_MODERATOR,
+        FORUM_ROLE_MODERATOR,
+        FORUM_ROLE_ADMINISTRATOR
+    )
+    def test_course_does_not_expire_for_user_with_course_role(self, role_name):
+        """
+        Test that users with the above roles for a course do not lose access
+        """
+        course = CourseFactory.create(start=THREE_YEARS_AGO)
+        url = course_home_url(course)
+
+        user = UserFactory.create()
+        role = RoleFactory(name=role_name, course_id=course.id)
+        role.users.add(user)
+
+        # ensure the user has indefinite access
+        self.client.login(username=user.username, password=self.TEST_PASSWORD)
+        response = self.client.get(url)
+        self.assertEqual(
+            response.status_code,
+            200,
+            "Should not expire access for user"
         )
 
     @mock.patch.dict(settings.FEATURES, {'DISABLE_START_DATES': False})

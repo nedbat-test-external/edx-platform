@@ -10,6 +10,14 @@ from django.test.utils import override_settings
 from django.urls import reverse
 from mock import patch
 
+from django_comment_common.models import (
+    FORUM_ROLE_ADMINISTRATOR,
+    FORUM_ROLE_MODERATOR,
+    FORUM_ROLE_GROUP_MODERATOR,
+    FORUM_ROLE_COMMUNITY_TA,
+    Role
+)
+from django_comment_client.tests.factories import RoleFactory
 from course_modes.tests.factories import CourseModeFactory
 from experiments.models import ExperimentKeyValue
 from lms.djangoapps.courseware.module_render import load_single_xblock
@@ -37,6 +45,14 @@ from student.tests.factories import (
     CourseEnrollmentFactory,
     UserFactory,
     TEST_PASSWORD
+)
+from lms.djangoapps.courseware.tests.factories import (
+    InstructorFactory,
+    StaffFactory,
+    BetaTesterFactory,
+    OrgStaffFactory,
+    OrgInstructorFactory,
+    GlobalStaffFactory,
 )
 from xmodule.modulestore.tests.django_utils import SharedModuleStoreTestCase
 from xmodule.modulestore.tests.factories import CourseFactory, ItemFactory
@@ -408,6 +424,28 @@ class TestProblemTypeAccess(SharedModuleStoreTestCase):
         # have access to all graded content
         user = role_factory.create(course_key=self.course.id)
         # assert that course team members have access to graded content
+        _assert_block_is_gated(
+            block=self.blocks_dict['problem'],
+            user_id=user.id,
+            course=self.course,
+            is_gated=False,
+            request_factory=self.factory,
+        )
+
+    @ddt.data(
+        FORUM_ROLE_COMMUNITY_TA,
+        FORUM_ROLE_ADMINISTRATOR,
+        FORUM_ROLE_MODERATOR,
+        FORUM_ROLE_GROUP_MODERATOR
+    )
+    def test_access_user_with_course_role(self, role_name):
+        """
+        Test that users with a given role do not lose access to graded content
+        """
+        user = UserFactory.create()
+        role = RoleFactory(name=role_name, course_id=self.course.id)
+        role.users.add(user)
+
         _assert_block_is_gated(
             block=self.blocks_dict['problem'],
             user_id=user.id,

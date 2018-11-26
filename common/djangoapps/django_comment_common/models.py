@@ -109,6 +109,20 @@ class Role(models.Model):
 
         return self.permissions.filter(name=permission).exists()
 
+    @staticmethod
+    def user_has_role_for_course(user, course_id, role_names):
+        """
+        Returns True if the user has one of the given roles for the given course
+        """
+        roles = Role.objects.filter(course_id=course_id, name__in=role_names)
+        for role in roles:
+            users_with_role = role.users.values_list('id', flat=True)
+
+            if user.id in users_with_role:
+                return True
+
+        return False
+
 
 class Permission(models.Model):
     name = models.CharField(max_length=30, null=False, blank=False, primary_key=True)
