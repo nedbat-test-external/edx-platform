@@ -18,15 +18,14 @@ from xmodule.partitions.partitions import ENROLLMENT_TRACK_PARTITION_ID
 from lms.djangoapps.courseware.access_response import AccessError
 from lms.djangoapps.courseware.access_utils import ACCESS_GRANTED
 from lms.djangoapps.courseware.date_summary import verified_upgrade_deadline_link
-from lms.djangoapps.courseware.masquerade import get_course_masquerade, is_masquerading_as_specific_student, \
-    is_masquerading_as_student
+from lms.djangoapps.courseware.masquerade import get_course_masquerade, is_masquerading_as_student
 from openedx.core.djangoapps.catalog.utils import get_course_run_details
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from openedx.core.djangoapps.util.user_messages import PageLevelMessages
 from openedx.core.djangolib.markup import HTML
 from openedx.features.content_type_gating.partitions import CONTENT_GATING_PARTITION_ID, CONTENT_TYPE_GATE_GROUP_IDS
 from openedx.features.course_duration_limits.models import CourseDurationLimitConfig
-from student.roles import GlobalStaff, CourseBetaTesterRole, CourseStaffRole, OrgStaffRole, CourseInstructorRole, OrgInstructorRole
+from student.roles import CourseBetaTesterRole
 
 MIN_DURATION = timedelta(weeks=4)
 MAX_DURATION = timedelta(weeks=12)
@@ -73,21 +72,8 @@ def get_user_course_expiration_date(user, course):
     if enrollment is None or enrollment.mode != 'audit':
         return None
 
-    global_staff = GlobalStaff().has_user(user)
-    staff_access = (
-        CourseStaffRole(course.id).has_user(user) or
-        OrgStaffRole(course.id.org).has_user(user)
-    )
-    instructor_access = (
-        CourseInstructorRole(course.id).has_user(user) or
-        OrgInstructorRole(course.id.org).has_user(user)
-    )
-    beta_tester = CourseBetaTesterRole(course.id).has_user(user)
-    elevated_access = global_staff or staff_access or instructor_access or beta_tester
-
-    is_generic_student_masquerade = is_masquerading_as_student(user, course.id)
-    specific_student_masquerade = is_masquerading_as_specific_student(user, course.id)
-    if elevated_access and not is_generic_student_masquerade and not specific_student_masquerade:
+    # if the user is a beta tester their access should not expire
+    if CourseBetaTesterRole(course.id).has_user(user):
         return None
 
     try:
@@ -118,10 +104,12 @@ def check_course_expired(user, course):
     if not CourseDurationLimitConfig.enabled_for_enrollment(user=user, course_key=course.id):
         return ACCESS_GRANTED
 
+    # masquerading course staff should always have access
+    if get_course_masquerade(user, course.id):
+        return ACCESS_GRANTED
+
     expiration_date = get_user_course_expiration_date(user, course)
     if expiration_date and timezone.now() > expiration_date:
-        if get_course_masquerade(user, course.id):
-            return ACCESS_GRANTED
         return AuditExpiredError(user, course, expiration_date)
 
     return ACCESS_GRANTED
@@ -131,35 +119,37 @@ def register_course_expired_message(request, course):
     """
     Add a banner notifying the user of the user course expiration date if it exists.
     """
-    if CourseDurationLimitConfig.enabled_for_enrollment(user=request.user, course_key=course.id):
-        expiration_date = get_user_course_expiration_date(request.user, course)
-        if not expiration_date:
+    if not CourseDurationLimitConfig.enabled_for_enrollment(user=request.user, course_key=course.id):
+        return
+
+    expiration_date = get_user_course_expiration_date(request.user, course)
+    if not expiration_date:
+        return
+
+    course_masquerade = get_course_masquerade(request.user, course.id)
+    if course_masquerade:
+        verified_mode_id = settings.COURSE_ENROLLMENT_MODES.get(CourseMode.VERIFIED, {}).get('id')
+        is_verified = course_masquerade.user_partition_id == ENROLLMENT_TRACK_PARTITION_ID and course_masquerade.group_id == verified_mode_id
+        is_full_access = course_masquerade.user_partition_id == CONTENT_GATING_PARTITION_ID and course_masquerade.group_id == CONTENT_TYPE_GATE_GROUP_IDS['full_access']
+        if is_verified or is_full_access:
             return
 
-        course_masquerade = get_course_masquerade(request.user, course.id)
-        if course_masquerade:
-            verified_mode_id = settings.COURSE_ENROLLMENT_MODES.get(CourseMode.VERIFIED, {}).get('id')
-            is_verified = course_masquerade.user_partition_id == ENROLLMENT_TRACK_PARTITION_ID and course_masquerade.group_id == verified_mode_id
-            is_full_access = course_masquerade.user_partition_id == CONTENT_GATING_PARTITION_ID and course_masquerade.group_id == CONTENT_TYPE_GATE_GROUP_IDS['full_access']
-            if is_verified or is_full_access:
-                return
-
-        if course_masquerade and timezone.now() > expiration_date:
-            upgrade_message = _('This learner would not have access to this course. '
-                                'Their access expired on {expiration_date}.')
-            PageLevelMessages.register_warning_message(
-                request,
-                HTML(upgrade_message).format(
-                    expiration_date=expiration_date.strftime('%b %-d')
-                )
+    if is_masquerading_as_student(request.user, course.id) and timezone.now() > expiration_date:
+        upgrade_message = _('This learner would not have access to this course. '
+                            'Their access expired on {expiration_date}.')
+        PageLevelMessages.register_warning_message(
+            request,
+            HTML(upgrade_message).format(
+                expiration_date=expiration_date.strftime('%b %-d')
             )
-        else:
-            upgrade_message = _('Your access to this course expires on {expiration_date}. \
-                    <a href="{upgrade_link}">Upgrade now</a> for unlimited access.')
-            PageLevelMessages.register_info_message(
-                request,
-                HTML(upgrade_message).format(
-                    expiration_date=expiration_date.strftime('%b %-d'),
-                    upgrade_link=verified_upgrade_deadline_link(user=request.user, course=course)
-                )
+        )
+    else:
+        upgrade_message = _('Your access to this course expires on {expiration_date}. \
+                <a href="{upgrade_link}">Upgrade now</a> for unlimited access.')
+        PageLevelMessages.register_info_message(
+            request,
+            HTML(upgrade_message).format(
+                expiration_date=expiration_date.strftime('%b %-d'),
+                upgrade_link=verified_upgrade_deadline_link(user=request.user, course=course)
             )
+        )
