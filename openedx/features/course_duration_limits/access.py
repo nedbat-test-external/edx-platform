@@ -129,8 +129,10 @@ def register_course_expired_message(request, course):
     course_masquerade = get_course_masquerade(request.user, course.id)
     if course_masquerade:
         verified_mode_id = settings.COURSE_ENROLLMENT_MODES.get(CourseMode.VERIFIED, {}).get('id')
-        is_verified = course_masquerade.user_partition_id == ENROLLMENT_TRACK_PARTITION_ID and course_masquerade.group_id == verified_mode_id
-        is_full_access = course_masquerade.user_partition_id == CONTENT_GATING_PARTITION_ID and course_masquerade.group_id == CONTENT_TYPE_GATE_GROUP_IDS['full_access']
+        is_verified = (course_masquerade.user_partition_id == ENROLLMENT_TRACK_PARTITION_ID
+                       and course_masquerade.group_id == verified_mode_id)
+        is_full_access = (course_masquerade.user_partition_id == CONTENT_GATING_PARTITION_ID
+                          and course_masquerade.group_id == CONTENT_TYPE_GATE_GROUP_IDS['full_access'])
         if is_verified or is_full_access:
             return
 
