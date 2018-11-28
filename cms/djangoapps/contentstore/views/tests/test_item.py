@@ -2457,6 +2457,38 @@ class TestXBlockInfo(ItemTest):
             with check_mongo_calls(chapter_queries_1):
                 self.client.get(outline_url, HTTP_ACCEPT='application/json')
 
+    @ddt.data(
+        (datetime(1000, 1, 1, 0, 0)),
+        (datetime(150, 11, 21, 14, 45)),
+        (datetime(1899, 12, 31, 23, 59)),
+        (datetime(1789, 6, 6, 22, 10)),
+        (datetime(1001, 1, 15, 19, 32)),
+    )
+    def test_xblock_due_date_validity(self, date):
+        """
+        Test due date for the subsection is not pre-1900
+        """
+
+        chapter = ItemFactory.create(
+            parent_location=self.course.location, category='chapter', display_name="Entrance Exam",
+            user_id=self.user.id, is_entrance_exam=True, in_entrance_exam=True
+        )
+
+        subsection = ItemFactory.create(
+            parent_location=chapter.location, category='sequential', display_name="Subsection - Due Date",
+            user_id=self.user.id, due=date
+        )
+        subsection = modulestore().get_item(subsection.location)
+        xblock_info = create_xblock_info(
+            subsection,
+            include_child_info=True,
+            include_children_predicate=ALWAYS,
+            user=self.user
+        )
+        # Both display and actual value should be None
+        self.assertIsNone(xblock_info['due_date'])
+        self.assertIsNone(xblock_info['due'])
+
     def test_entrance_exam_chapter_xblock_info(self):
         chapter = ItemFactory.create(
             parent_location=self.course.location, category='chapter', display_name="Entrance Exam",

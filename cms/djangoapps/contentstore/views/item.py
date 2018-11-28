@@ -1125,6 +1125,7 @@ def create_xblock_info(xblock, data=None, metadata=None, include_ancestor_info=F
         child_info = None
 
     release_date = _get_release_date(xblock, user)
+    due_date = _get_due_date(xblock, user)
 
     if xblock.category != 'course' and not is_concise:
         visibility_state = _compute_visibility_state(
@@ -1181,7 +1182,7 @@ def create_xblock_info(xblock, data=None, metadata=None, include_ancestor_info=F
             'has_explicit_staff_lock': xblock.fields['visible_to_staff_only'].is_set_on(xblock),
             'start': xblock.fields['start'].to_json(xblock.start),
             'graded': xblock.graded,
-            'due_date': get_default_time_display(xblock.due),
+            'due_date': due_date,
             'due': xblock.fields['due'].to_json(xblock.due),
             'format': xblock.format,
             'course_graders': [grader.get('type') for grader in graders],
@@ -1451,6 +1452,30 @@ def _get_release_date(xblock, user=None):
 
     # Treat DEFAULT_START_DATE as a magic number that means the release date has not been set
     return get_default_time_display(xblock.start) if xblock.start != DEFAULT_START_DATE else None
+
+
+def _get_due_date(xblock, user=None):
+    """
+    Returns the due date for the xblock, or None if the due date is not set or is Invalid.
+    """
+
+    set_to_none = False
+    try:
+        set_to_none = xblock.due.year < 1900
+
+    except ValueError:
+        set_to_none = True
+
+    # For cases when due date is None
+    except AttributeError:
+        return None
+
+    if set_to_none and user:
+        xblock.due = None
+        # Update the xblock in the store
+        xblock = _update_with_callback(xblock, user)
+
+    return get_default_time_display(xblock.due) if xblock.due is not None else None
 
 
 def _get_release_date_from(xblock):
