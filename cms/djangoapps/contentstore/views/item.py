@@ -1459,23 +1459,30 @@ def _get_due_date(xblock, user=None):
     Returns the due date for the xblock, or None if the due date is not set or is Invalid.
     """
 
-    set_to_none = False
     try:
-        set_to_none = xblock.due.year < 1900
+        set_to_none = False
+        try:
+            set_to_none = xblock.due.year < 1900
 
+        # For cases when due date is None
+        except AttributeError:
+            return None
+
+        # If user information provided, update the value in store
+        if set_to_none and user:
+            xblock.due = None
+            # Update the xblock in the store
+            xblock = _update_with_callback(xblock, user)
+
+        return get_default_time_display(xblock.due)
+
+    # If getting any previously stored value with year < 1900
+    # when user is None, the get_default_time_display will
+    # throw ValueError. To cater for that, mark the previous date
+    # as None
     except ValueError:
-        set_to_none = True
-
-    # For cases when due date is None
-    except AttributeError:
-        return None
-
-    if set_to_none and user:
         xblock.due = None
-        # Update the xblock in the store
-        xblock = _update_with_callback(xblock, user)
-
-    return get_default_time_display(xblock.due) if xblock.due is not None else None
+        return xblock.due
 
 
 def _get_release_date_from(xblock):

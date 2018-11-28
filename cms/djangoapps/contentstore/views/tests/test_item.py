@@ -2486,7 +2486,7 @@ class TestXBlockInfo(ItemTest):
             user=self.user
         )
         # Both display and actual value should be None
-        self.assertIsNone(xblock_info['due_date'])
+        self.assertEquals(xblock_info['due_date'], u'')
         self.assertIsNone(xblock_info['due'])
 
     def test_entrance_exam_chapter_xblock_info(self):
