@@ -584,9 +584,8 @@ def _save_xblock(user, xblock, data=None, children_strings=None, metadata=None, 
 
                         field.write_to(xblock, value)
 
-                # Validate due date before update call
-                validate_due_date(xblock)
-
+        # Validate the due date of xblock before updating xblock in the modulestore
+        validate_and_update_xblock_due_date(xblock)
         # update the xblock and call any xblock callbacks
         xblock = _update_with_callback(xblock, user, old_metadata, old_content)
 
@@ -1456,12 +1455,12 @@ def _get_release_date(xblock, user=None):
     return get_default_time_display(xblock.start) if xblock.start != DEFAULT_START_DATE else None
 
 
-def validate_due_date(xblock):
+def validate_and_update_xblock_due_date(xblock):
     """
     Validates the due date for the xblock, set to None if invalid due date provided
     """
 
-    if xblock.due is not None and xblock.due.year < 1900:
+    if xblock.due and xblock.due.year < 1900:
         xblock.due = None
 
 
