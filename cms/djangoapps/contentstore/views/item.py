@@ -585,7 +585,7 @@ def _save_xblock(user, xblock, data=None, children_strings=None, metadata=None, 
                         field.write_to(xblock, value)
 
                 # Validate due date before update call
-                validate_due_date(xblock, user)
+                validate_due_date(xblock)
 
         # update the xblock and call any xblock callbacks
         xblock = _update_with_callback(xblock, user, old_metadata, old_content)
@@ -1456,22 +1456,12 @@ def _get_release_date(xblock, user=None):
     return get_default_time_display(xblock.start) if xblock.start != DEFAULT_START_DATE else None
 
 
-def validate_due_date(xblock, user=None):
+def validate_due_date(xblock):
     """
-    Validates the due date for the xblock, resetting if invalid due date provided
+    Validates the due date for the xblock, set to None if invalid due date provided
     """
 
-    set_to_none = False
-    try:
-        set_to_none = xblock.due.year < 1900
-
-    # For cases when due date is None
-    except AttributeError:
-        pass
-
-    if set_to_none and user:
-        # If user information provided and `set_to_none` is True
-        # then set the due date as None
+    if xblock.due is not None and xblock.due.year < 1900:
         xblock.due = None
 
 
