@@ -1418,6 +1418,7 @@ class TestEditItemSetup(ItemTest):
         self.course_update_url = reverse_usage_url("xblock_handler", self.usage_key)
 
 
+@ddt.ddt
 class TestEditItem(TestEditItemSetup):
     """
     Test xblock update.
@@ -1473,6 +1474,32 @@ class TestEditItem(TestEditItemSetup):
         sequential = self.get_item_from_modulestore(self.seq_usage_key)
         self.assertEqual(sequential.due, datetime(2010, 11, 22, 4, 0, tzinfo=UTC))
         self.assertEqual(sequential.start, datetime(2010, 9, 12, 14, 0, tzinfo=UTC))
+
+    @ddt.data(
+        '1000-01-01T00:00Z',
+        '0150-11-21T14:45Z',
+        '1899-12-31T23:59Z',
+        '1789-06-06T22:10Z',
+        '1001-01-15T19:32Z',
+    )
+    def test_xblock_due_date_validity(self, date):
+        """
+        Test due date for the subsection is not pre-1900
+        """
+        self.client.ajax_post(
+            self.seq_update_url,
+            data={'metadata': {'due': date}}
+        )
+        sequential = self.get_item_from_modulestore(self.seq_usage_key)
+        xblock_info = create_xblock_info(
+            sequential,
+            include_child_info=True,
+            include_children_predicate=ALWAYS,
+            user=self.user
+        )
+        # Both display and actual value should be None
+        self.assertEquals(xblock_info['due_date'], u'')
+        self.assertIsNone(xblock_info['due'])
 
     def test_update_generic_fields(self):
         new_display_name = 'New Display Name'
@@ -2456,38 +2483,6 @@ class TestXBlockInfo(ItemTest):
             # calls should be same after adding two new children for split only.
             with check_mongo_calls(chapter_queries_1):
                 self.client.get(outline_url, HTTP_ACCEPT='application/json')
-
-    @ddt.data(
-        (datetime(1000, 1, 1, 0, 0)),
-        (datetime(150, 11, 21, 14, 45)),
-        (datetime(1899, 12, 31, 23, 59)),
-        (datetime(1789, 6, 6, 22, 10)),
-        (datetime(1001, 1, 15, 19, 32)),
-    )
-    def test_xblock_due_date_validity(self, date):
-        """
-        Test due date for the subsection is not pre-1900
-        """
-
-        chapter = ItemFactory.create(
-            parent_location=self.course.location, category='chapter', display_name="Entrance Exam",
-            user_id=self.user.id, is_entrance_exam=True, in_entrance_exam=True
-        )
-
-        subsection = ItemFactory.create(
-            parent_location=chapter.location, category='sequential', display_name="Subsection - Due Date",
-            user_id=self.user.id, due=date
-        )
-        subsection = modulestore().get_item(subsection.location)
-        xblock_info = create_xblock_info(
-            subsection,
-            include_child_info=True,
-            include_children_predicate=ALWAYS,
-            user=self.user
-        )
-        # Both display and actual value should be None
-        self.assertEquals(xblock_info['due_date'], u'')
-        self.assertIsNone(xblock_info['due'])
 
     def test_entrance_exam_chapter_xblock_info(self):
         chapter = ItemFactory.create(

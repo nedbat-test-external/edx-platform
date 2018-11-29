@@ -584,6 +584,9 @@ def _save_xblock(user, xblock, data=None, children_strings=None, metadata=None, 
 
                         field.write_to(xblock, value)
 
+                # Validate due date before update call
+                validate_due_date(xblock, user)
+
         # update the xblock and call any xblock callbacks
         xblock = _update_with_callback(xblock, user, old_metadata, old_content)
 
@@ -1125,7 +1128,6 @@ def create_xblock_info(xblock, data=None, metadata=None, include_ancestor_info=F
         child_info = None
 
     release_date = _get_release_date(xblock, user)
-    due_date = _get_due_date(xblock, user)
 
     if xblock.category != 'course' and not is_concise:
         visibility_state = _compute_visibility_state(
@@ -1182,7 +1184,7 @@ def create_xblock_info(xblock, data=None, metadata=None, include_ancestor_info=F
             'has_explicit_staff_lock': xblock.fields['visible_to_staff_only'].is_set_on(xblock),
             'start': xblock.fields['start'].to_json(xblock.start),
             'graded': xblock.graded,
-            'due_date': due_date,
+            'due_date': get_default_time_display(xblock.due),
             'due': xblock.fields['due'].to_json(xblock.due),
             'format': xblock.format,
             'course_graders': [grader.get('type') for grader in graders],
@@ -1454,35 +1456,23 @@ def _get_release_date(xblock, user=None):
     return get_default_time_display(xblock.start) if xblock.start != DEFAULT_START_DATE else None
 
 
-def _get_due_date(xblock, user=None):
+def validate_due_date(xblock, user=None):
     """
-    Returns the due date for the xblock, or None if the due date is not set or is Invalid.
+    Validates the due date for the xblock, resetting if invalid due date provided
     """
 
+    set_to_none = False
     try:
-        set_to_none = False
-        try:
-            set_to_none = xblock.due.year < 1900
+        set_to_none = xblock.due.year < 1900
 
-        # For cases when due date is None
-        except AttributeError:
-            return None
+    # For cases when due date is None
+    except AttributeError:
+        pass
 
-        # If user information provided, update the value in store
-        if set_to_none and user:
-            xblock.due = None
-            # Update the xblock in the store
-            xblock = _update_with_callback(xblock, user)
-
-        return get_default_time_display(xblock.due)
-
-    # If getting any previously stored value with year < 1900
-    # when user is None, the get_default_time_display will
-    # throw ValueError. To cater for that, mark the previous date
-    # as None
-    except ValueError:
+    if set_to_none and user:
+        # If user information provided and `set_to_none` is True
+        # then set the due date as None
         xblock.due = None
-        return xblock.due
 
 
 def _get_release_date_from(xblock):
