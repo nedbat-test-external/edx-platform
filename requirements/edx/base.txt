@@ -44,7 +44,6 @@ djangorestframework-jwt==1.8.0
 djangorestframework-oauth==1.1.0
 edx-ccx-keys==0.2.1
 edx-celeryutils==0.2.4
-edx-completion==1.0.3
 edx-drf-extensions==1.11.0
 edx-i18n-tools==0.3.7
 edx-lint==0.4.3
