@@ -688,7 +688,7 @@ def prepare_content(content, course_key, is_staff=False, discussion_division_ena
     ]
 
     if (content.get('anonymous') is False) and ((content.get('anonymous_to_peers') is False) or is_staff):
-        fields += ['username', 'user_id']
+        fields += ['username', 'user_id', 'first_name', 'last_name']
 
     content = strip_none(extract(content, fields))
 
@@ -710,7 +710,10 @@ def prepare_content(content, course_key, is_staff=False, discussion_division_ena
                 endorser and
                 ("username" in fields or has_permission(endorser, "endorse_comment", course_key))
         ):
-            endorsement["username"] = endorser.username
+            if endorser.first_name and endorser.last_name:
+                endorsement["username"] = '{} {}'.format(endorser.first_name, endorser.last_name[0])
+            else:
+                endorsement["username"] = endorser.username
         else:
             del endorsement["user_id"]
 
