@@ -33,7 +33,7 @@ class Command(BaseCommand):
                 course_key = CourseKey.from_string(course_id)
             except InvalidKeyError:
                 raise CommandError("Invalid course_id: '%s'." % course_id)
-            
+
             toggle_course_assets_lock(course_key, locked)
         else:
             courses = modulestore().get_courses()
@@ -48,7 +48,7 @@ def toggle_course_assets_lock(course_key, locked):
 
     for asset in assets:
         content_store.set_attr(asset['asset_key'], 'locked', locked)
-        
         # Delete the asset from the cache so that asset is locked/unlocked the next time it is requested.
         del_cached_content(asset['asset_key'])
+
     logger.info('Assets for course: {} successfully {}'.format(course_key, 'locked' if locked else 'unlocked'))
