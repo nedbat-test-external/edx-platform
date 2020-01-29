@@ -22,9 +22,3 @@
         </div>
     </div>
 </section>
-
-<script>
-$('.btn-link.new-post-btn').on("click", function() {
-     $('.forum-new-post-form .thread-title').focus()
- });
-</script>
